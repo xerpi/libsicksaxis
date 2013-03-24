@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wiiuse/wpad.h>
-#include "SickSaxis.h"
+#include <sicksaxis.h>
 
 #define cls() printf("\x1b[2;0H")
 

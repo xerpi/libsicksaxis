@@ -1,6 +1,6 @@
 /* SickSaxis lib version 1.0 by xerpi */
 
-#include "SickSaxis.h"
+#include "sicksaxis.h"
 
 /*
  * the total time the led is active (0xff means forever)
