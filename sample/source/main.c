@@ -3,8 +3,7 @@
 #include <unistd.h>
 #include <gccore.h>
 #include <wiiuse/wpad.h>
-#include "sicksaxis.h"
-
+#include <sicksaxis.h>
 
 static int run = 1;
 static void *xfb = NULL;
@@ -19,12 +18,10 @@ int main(int argc, char **argv)
 	USB_Initialize();
 	init_video();
 	WPAD_Init();
-	printf("sicksaxis v2\n");
 	
 	ss_init();
 	struct ss_device dev, dev2;
 	ss_initialize(&dev);
-	ss_initialize(&dev2);
 
 	while(run) {
 		WPAD_ScanPads();
@@ -36,12 +33,12 @@ int main(int argc, char **argv)
 		if (pressed & WPAD_BUTTON_1) ss_set_led(&dev, rand()%8);
 		if (pressed & WPAD_BUTTON_2) ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
 
-		//printf("\x1b[2;0H");
+		printf("\x1b[2;0H");
 		if (dev.connected)
-			;//print_ss_data(&dev);
+			print_ss_data(&dev);
 			
 		if (dev2.connected)
-			;//print_ss_data(&dev2);
+			print_ss_data(&dev2);
 		
 		if (pressed & WPAD_BUTTON_HOME) run = 0;
 		VIDEO_WaitVSync();
