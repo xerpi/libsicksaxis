@@ -28,9 +28,12 @@ int main(int argc, char **argv)
 		WPAD_ScanPads();
 		u32 pressed = WPAD_ButtonsDown(0);
 		
+		
 		if (pressed & WPAD_BUTTON_A) dev = ss_open();
 		if (pressed & WPAD_BUTTON_PLUS) dev2 = ss_open();
 		if (pressed & WPAD_BUTTON_B) printf("\x1b[2;0H");
+		
+		printf("buttons : 0x%X\n", *(uint32_t*)((uintptr_t)&(dev->pad.buttons)));
 
 
 		if (pressed & WPAD_BUTTON_HOME) exit(0);

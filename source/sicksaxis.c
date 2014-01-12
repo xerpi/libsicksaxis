@@ -11,6 +11,11 @@ static int _ss_dev_id_list_exists(int id);
 static int _ss_dev_id_list_add(int id);
 static int _ss_dev_id_list_remove(int id);
 static int _ss_removal_cb(int result, void *usrdata);
+static int _ss_read_cb(int result, void *usrdata);
+static int _ss_operational_cb(int result, void *usrdata);
+static int _ss_read(struct ss_device *dev);
+
+static int _ss_set_operational(struct ss_device *dev);
 
 int ss_init()
 {
@@ -49,9 +54,11 @@ struct ss_device *ss_open()
             struct ss_device *dev = iosAlloc(_ss_heap_id, sizeof(struct ss_device));
             dev->device_id = dev_entry[i].device_id;
             dev->fd = fd;
+            dev->enabled = 0;
             
             DEBUG("Added device, id: %d\n", dev_entry[i].device_id);
             USB_DeviceRemovalNotifyAsync(fd, &_ss_removal_cb, dev);
+            _ss_set_operational(dev);
             
             _ss_dev_id_list_add(dev_entry[i].device_id);
             return dev;
@@ -69,14 +76,54 @@ int ss_close(struct ss_device *dev)
     return 1;
 }
 
+static int _ss_read(struct ss_device *dev)
+{ 
+    return USB_WriteCtrlMsgAsync(
+            dev->fd,
+            USB_REQTYPE_INTERFACE_GET,
+            USB_REQ_GETREPORT,
+            (USB_REPTYPE_FEATURE<<8) | 0x01,
+            0x0,
+            SS_PAYLOAD_SIZE,
+            &dev->pad,
+            _ss_read_cb,
+            dev);
+}
+
 static int _ss_removal_cb(int result, void *usrdata)
 {
     struct ss_device *dev = (struct ss_device*)usrdata;
     DEBUG("Remove cb device, id: %d\n", dev->device_id);
-    if (dev) {
-        _ss_dev_id_list_remove(dev->device_id);
-        iosFree(_ss_heap_id, dev);
-    }
+    _ss_dev_id_list_remove(dev->device_id);
+    iosFree(_ss_heap_id, dev);
+    return 1;
+}
+
+static int _ss_set_operational(struct ss_device *dev)
+{
+    return USB_WriteCtrlMsgAsync(
+                dev->fd,
+                USB_REQTYPE_INTERFACE_GET,
+                USB_REQ_GETREPORT,
+                (USB_REPTYPE_FEATURE<<8) | 0xf2,
+                0x0,
+                0x0,
+                NULL,
+                _ss_operational_cb,
+                dev);
+}
+
+static int _ss_read_cb(int result, void *usrdata)
+{
+    _ss_read(usrdata);
+    return 1;
+}
+
+static int _ss_operational_cb(int result, void *usrdata)
+{
+    struct ss_device *dev = (struct ss_device*)usrdata;
+    DEBUG("Set operational cb device, id: %d\n", dev->device_id);
+    dev->enabled = 1;
     return 1;
 }
 
