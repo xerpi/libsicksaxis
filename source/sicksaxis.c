@@ -1,5 +1,6 @@
 #include "sicksaxis.h"
 #include <gccore.h>
+#include <stdio.h>
 
 
 static int _ss_heap_id = -1;
@@ -8,6 +9,8 @@ static int _ss_dev_id_list[SS_MAX_DEV] = {0};
 
 static int _ss_dev_id_list_exists(int id);
 static int _ss_dev_id_list_add(int id);
+static int _ss_dev_id_list_remove(int id);
+static int _ss_removal_cb(int result, void *usrdata);
 
 int ss_init()
 {
@@ -29,15 +32,17 @@ struct ss_device *ss_open()
         return NULL;
     }
     
+    DEBUG("Found %d devices\n", dev_count);
+    
     if (dev_count == 0) return NULL;
+    
     
     int i;
     for (i = 0; i < dev_count; ++i) {
         if (!_ss_dev_id_list_exists(dev_entry[i].device_id)) {
-            _ss_dev_id_list_add(dev_entry[i].device_id);
             
             int fd;
-            if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &fd)< 0) {
+            if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &fd) < 0) {
                 return NULL;
             }
             
@@ -45,6 +50,10 @@ struct ss_device *ss_open()
             dev->device_id = dev_entry[i].device_id;
             dev->fd = fd;
             
+            DEBUG("Added device, id: %d\n", dev_entry[i].device_id);
+            USB_DeviceRemovalNotifyAsync(fd, &_ss_removal_cb, dev);
+            
+            _ss_dev_id_list_add(dev_entry[i].device_id);
             return dev;
         }
     }
@@ -55,14 +64,21 @@ struct ss_device *ss_open()
 int ss_close(struct ss_device *dev)
 {
     if (dev) {
-        IOS_Close(dev->fd);
-        iosFree(_ss_heap_id, dev);
-        dev = NULL;
+        USB_CloseDevice(&dev->fd);
     }
     return 1;
 }
 
-
+static int _ss_removal_cb(int result, void *usrdata)
+{
+    struct ss_device *dev = (struct ss_device*)usrdata;
+    DEBUG("Remove cb device, id: %d\n", dev->device_id);
+    if (dev) {
+        _ss_dev_id_list_remove(dev->device_id);
+        iosFree(_ss_heap_id, dev);
+    }
+    return 1;
+}
 
 
 static int _ss_dev_id_list_exists(int id)
@@ -86,3 +102,14 @@ static int _ss_dev_id_list_add(int id)
     return 0; 
 }
 
+static int _ss_dev_id_list_remove(int id)
+{
+    int i;
+    for (i = 0; i < SS_MAX_DEV; ++i) {
+        if (_ss_dev_id_list[i] == id) {
+           _ss_dev_id_list[i] = 0;
+           return 1; 
+        }
+    }
+    return 0; 
+}

@@ -10,28 +10,26 @@
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
-static int heap_id = -1;
 void init_video();
-void usb_list();
 
 int main(int argc, char **argv)
 {
 	IOS_ReloadIOS(58);
-	usleep(50 * 1000);
+	usleep(100 * 1000);
 	USB_Initialize();
 	init_video();
 	WPAD_Init();
 	printf("sicksaxis v2\n");
 	
-	heap_id = iosCreateHeap(heap_id);
-	
-	usb_list();
+	ss_init();
+	struct ss_device *dev, *dev2;
 
 	while(1) {
 		WPAD_ScanPads();
 		u32 pressed = WPAD_ButtonsDown(0);
 		
-		if (pressed & WPAD_BUTTON_A) usb_list();
+		if (pressed & WPAD_BUTTON_A) dev = ss_open();
+		if (pressed & WPAD_BUTTON_PLUS) dev2 = ss_open();
 		if (pressed & WPAD_BUTTON_B) printf("\x1b[2;0H");
 
 
@@ -41,40 +39,6 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-
-
-void usb_list()
-{
-	usb_device_entry dev_entry[8];
-	u8 dev_count;
-	if (USB_GetDeviceList(dev_entry, 8, USB_CLASS_HID, &dev_count) < 0) {
-		printf("Could not get USB device list.\n");
-		return;
-	}
-	printf("Found %d USB devices.\n\n", dev_count);
-	if (dev_count == 0) return;
-	
-	/*
-	Device 0:
-		Device ID: 1966113
-		Token: 2228225
-		
-	Device 1:
-		Device ID: 2031650
-		Token: 2162689		
-	
-	*/
-	
-	int i;
-	for (i = 0; i < dev_count; ++i) {
-		printf("Device %d:\n", i);
-		printf("\tDevice ID: %d\n", dev_entry[i].device_id);
-		//printf("\tVID: 0x%X\n", dev_entry[i].vid);
-		//printf("\tPID: 0x%X\n", dev_entry[i].pid);
-		printf("\tToken: %d\n\n", dev_entry[i].token);
-	}
-}
-
 
 void init_video()
 {

@@ -2,6 +2,8 @@
 #define _SICKSAXIS_H_
 
 
+#define DEBUG(x,...) printf(x,__VA_ARGS__)
+
 #define SS_HEAP_SIZE   4096
 #define SS_MAX_DEV     8
 #define SS_VENDOR_ID   0x054C
