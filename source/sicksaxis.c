@@ -1,10 +1,26 @@
 #include "sicksaxis.h"
 #include <gccore.h>
 #include <stdio.h>
+#include <string.h>
 
+static uint8_t ATTRIBUTE_ALIGN(32) _ss_attributes_payload[] =
+{
+    0x52,
+    0x00, 0x00, 0x00, 0x00, //Rumble
+    0xff, 0x80, //Gyro
+    0x00, 0x00,
+    0x00, //* LED_1 = 0x02, LED_2 = 0x04, ... */
+    0xff, 0x27, 0x10, 0x00, 0x32, /* LED_4 */
+    0xff, 0x27, 0x10, 0x00, 0x32, /* LED_3 */
+    0xff, 0x27, 0x10, 0x00, 0x32, /* LED_2 */
+    0xff, 0x27, 0x10, 0x00, 0x32, /* LED_1 */
+};
+
+static const uint8_t _ss_led_pattern[] = {0x0, 0x02, 0x04, 0x08, 0x10, 0x12, 0x14, 0x18};
 
 static int _ss_heap_id = -1;
 static int _ss_inited = 0;
+static int _ss_dev_number = 1;
 static int _ss_dev_id_list[SS_MAX_DEV] = {0};
 
 static int _ss_dev_id_list_exists(int id);
@@ -14,8 +30,9 @@ static int _ss_removal_cb(int result, void *usrdata);
 static int _ss_read_cb(int result, void *usrdata);
 static int _ss_operational_cb(int result, void *usrdata);
 static int _ss_read(struct ss_device *dev);
-
 static int _ss_set_operational(struct ss_device *dev);
+static int _ss_build_attributes_payload(struct ss_device *dev);
+static int _ss_send_attributes_payload(struct ss_device *dev);
 
 int ss_init()
 {
@@ -27,103 +44,217 @@ int ss_init()
 }
 
 
-struct ss_device *ss_open()
+int ss_initialize(struct ss_device *dev)
 {
-    if (!_ss_inited) return NULL;
+    dev->device_id = -1;
+    dev->fd = -1;
+    dev->connected = 0;
+    dev->enabled = 0;
+    dev->reading = 0;
+    memset(&dev->pad, 0x0, sizeof(struct SS_GAMEPAD));
+    memset(&dev->attributes, 0x0, sizeof(struct SS_ATTRIBUTES));
+    return 1;
+}
+
+int ss_open(struct ss_device *dev)
+{
+    if (!_ss_inited) return -1;
+    if (dev->connected) ss_close(dev);
     
     usb_device_entry dev_entry[8];
     unsigned char dev_count;
     if (USB_GetDeviceList(dev_entry, 8, USB_CLASS_HID, &dev_count) < 0) {
-        return NULL;
+        return -2;
     }
-    
-    DEBUG("Found %d devices\n", dev_count);
-    
-    if (dev_count == 0) return NULL;
-    
-    
+        
     int i;
     for (i = 0; i < dev_count; ++i) {
         if (!_ss_dev_id_list_exists(dev_entry[i].device_id)) {
-            
-            int fd;
-            if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &fd) < 0) {
-                return NULL;
+            if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &dev->fd) < 0) {
+                return -3;
             }
-            
-            struct ss_device *dev = iosAlloc(_ss_heap_id, sizeof(struct ss_device));
             dev->device_id = dev_entry[i].device_id;
-            dev->fd = fd;
+            dev->connected = 1;
             dev->enabled = 0;
-            
-            DEBUG("Added device, id: %d\n", dev_entry[i].device_id);
-            USB_DeviceRemovalNotifyAsync(fd, &_ss_removal_cb, dev);
-            _ss_set_operational(dev);
+            dev->reading = 0;            
+            ss_set_led(dev, _ss_dev_number);
             
             _ss_dev_id_list_add(dev_entry[i].device_id);
-            return dev;
+            _ss_dev_number++;
+            
+            USB_DeviceRemovalNotifyAsync(dev->fd, &_ss_removal_cb, dev);
+            _ss_set_operational(dev);
+            return 1;
         }
     }
     
-    return NULL;
+    return -4;
 }
 
 int ss_close(struct ss_device *dev)
 {
-    if (dev) {
+    if (dev && dev->fd > 0) {
         USB_CloseDevice(&dev->fd);
     }
     return 1;
 }
 
+inline int ss_start_reading(struct ss_device *dev)
+{
+    if (dev) {
+        dev->reading = 1;
+        if (dev->enabled) {
+            _ss_read(dev);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+
+inline int ss_stop_reading(struct ss_device *dev)
+{
+    if (dev) {
+        dev->reading = 0;
+        return 1;
+    }
+    return 0;
+}
+
+static int _ss_build_attributes_payload(struct ss_device *dev)
+{
+    _ss_attributes_payload[1] = dev->attributes.rumble.duration_right;
+    _ss_attributes_payload[2] = dev->attributes.rumble.power_right;
+    _ss_attributes_payload[3] = dev->attributes.rumble.duration_left;
+    _ss_attributes_payload[4] = dev->attributes.rumble.power_left;
+    _ss_attributes_payload[9] = _ss_led_pattern[dev->attributes.led];
+    return 1;   
+}
+
+static int _ss_send_attributes_payload(struct ss_device *dev)
+{
+    _ss_build_attributes_payload(dev);
+    return USB_WriteCtrlMsgAsync(dev->fd,
+        USB_REQTYPE_INTERFACE_SET,
+        USB_REQ_SETREPORT,
+        (USB_REPTYPE_OUTPUT<<8) | 0x01,
+        0x0,
+        sizeof(_ss_attributes_payload),
+        _ss_attributes_payload,
+        NULL, NULL);  
+}
+
+inline int ss_set_led(struct ss_device *dev, int led)
+{
+    dev->attributes.led = led;
+    return _ss_send_attributes_payload(dev);																
+}
+
+inline int ss_set_rumble(struct ss_device *dev, uint8_t duration_right, uint8_t power_right, uint8_t duration_left, uint8_t power_left)
+{
+    dev->attributes.rumble.duration_right = duration_right;
+    dev->attributes.rumble.power_right    = power_right;
+    dev->attributes.rumble.duration_left  = duration_left;
+    dev->attributes.rumble.power_left     = power_left;
+    return _ss_send_attributes_payload(dev);
+}
+
+
+int ss_get_mac(struct ss_device *dev, uint8_t *mac)
+{
+    uint8_t ATTRIBUTE_ALIGN(32) msg[8];
+    int ret = USB_WriteCtrlMsgAsync(dev->fd,
+                USB_REQTYPE_INTERFACE_GET,
+                USB_REQ_GETREPORT,
+                (USB_REPTYPE_FEATURE<<8) | 0xf5,
+                0,
+                sizeof(msg),
+                msg,
+                NULL, NULL);
+
+    mac[0] = msg[2];
+    mac[1] = msg[3];
+    mac[2] = msg[4];
+    mac[3] = msg[5];
+    mac[4] = msg[6];
+    mac[5] = msg[7];
+    return ret;
+}
+
+int ss_set_mac(struct ss_device *dev, const uint8_t *mac)
+{
+    uint8_t ATTRIBUTE_ALIGN(32) msg[] = {0x01, 0x00, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]};
+    int ret = USB_WriteCtrlMsgAsync(dev->fd,
+                USB_REQTYPE_INTERFACE_SET,
+                USB_REQ_SETREPORT,
+                (USB_REPTYPE_FEATURE<<8) | 0xf5,
+                0,
+                sizeof(msg),
+                msg,
+                NULL, NULL);
+    return ret;
+}
+
+
 static int _ss_read(struct ss_device *dev)
-{ 
+{
     return USB_WriteCtrlMsgAsync(
             dev->fd,
             USB_REQTYPE_INTERFACE_GET,
             USB_REQ_GETREPORT,
-            (USB_REPTYPE_FEATURE<<8) | 0x01,
+            (USB_REPTYPE_INPUT<<8) | 0x01,
             0x0,
             SS_PAYLOAD_SIZE,
             &dev->pad,
-            _ss_read_cb,
+            &_ss_read_cb,
             dev);
 }
 
 static int _ss_removal_cb(int result, void *usrdata)
 {
     struct ss_device *dev = (struct ss_device*)usrdata;
-    DEBUG("Remove cb device, id: %d\n", dev->device_id);
-    _ss_dev_id_list_remove(dev->device_id);
-    iosFree(_ss_heap_id, dev);
-    return 1;
+    if (dev->device_id > 0) {
+        _ss_dev_id_list_remove(dev->device_id);
+        ss_initialize(dev);
+        _ss_dev_number--;
+        return 1;
+    }
+    return 0;
 }
 
 static int _ss_set_operational(struct ss_device *dev)
 {
+    uint8_t ATTRIBUTE_ALIGN(32) buf[17];
     return USB_WriteCtrlMsgAsync(
-                dev->fd,
-                USB_REQTYPE_INTERFACE_GET,
-                USB_REQ_GETREPORT,
-                (USB_REPTYPE_FEATURE<<8) | 0xf2,
-                0x0,
-                0x0,
-                NULL,
-                _ss_operational_cb,
-                dev);
+            dev->fd,
+            USB_REQTYPE_INTERFACE_GET,
+            USB_REQ_GETREPORT,
+            (USB_REPTYPE_FEATURE<<8) | 0xf2,
+            0x0,
+            17,
+            buf,
+            &_ss_operational_cb,
+            dev);
 }
 
 static int _ss_read_cb(int result, void *usrdata)
 {
-    _ss_read(usrdata);
+    if (usrdata) {
+        struct ss_device *dev = (struct ss_device*)usrdata;
+        if (dev->reading) {
+            _ss_read(dev);
+        }
+    }
     return 1;
 }
 
 static int _ss_operational_cb(int result, void *usrdata)
 {
     struct ss_device *dev = (struct ss_device*)usrdata;
-    DEBUG("Set operational cb device, id: %d\n", dev->device_id);
     dev->enabled = 1;
+    if (dev->reading) {
+        _ss_read(dev);   
+    }
     return 1;
 }
 

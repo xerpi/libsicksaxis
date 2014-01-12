@@ -3,7 +3,6 @@
 
 #include <gccore.h>
 
-#define DEBUG(x,...) printf(x,__VA_ARGS__)
 
 #define SS_HEAP_SIZE    4096
 #define SS_MAX_DEV      8
@@ -96,15 +95,38 @@ struct SS_GAMEPAD
     struct SS_MOTION               motion;
 }__attribute__((packed));
 
-struct ss_device {
-    int device_id;
-    int fd;
-    int enabled;
-    struct SS_GAMEPAD pad;
+struct SS_ATTRIBUTE_RUMBLE
+{
+    uint8_t duration_right;
+    uint8_t power_right;
+    uint8_t duration_left;
+    uint8_t power_left;
 };
 
+struct SS_ATTRIBUTES
+{
+    struct SS_ATTRIBUTE_RUMBLE rumble;
+    int led;
+};
+
+struct ss_device {
+    struct SS_GAMEPAD pad;
+    struct SS_ATTRIBUTES attributes;
+    int device_id, fd;
+    int connected, enabled, reading;
+}__attribute__((aligned(32)));
+
 int ss_init();
-struct ss_device *ss_open();
+int ss_initialize(struct ss_device *dev);
+int ss_open(struct ss_device *dev);
 int ss_close(struct ss_device *dev);
+
+inline int ss_start_reading(struct ss_device *dev);
+inline int ss_stop_reading(struct ss_device *dev);
+inline int ss_set_led(struct ss_device *dev, int led);
+inline int ss_set_rumble(struct ss_device *dev, uint8_t duration_right, uint8_t power_right, uint8_t duration_left, uint8_t power_left);
+int ss_get_mac(struct ss_device *dev, uint8_t *mac);
+int ss_set_mac(struct ss_device *dev, const uint8_t *mac);
+
 
 #endif
