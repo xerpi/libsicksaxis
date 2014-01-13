@@ -30,43 +30,44 @@ int main(int argc, char **argv)
 	while(run) {
 		WPAD_ScanPads();
 		u32 pressed = WPAD_ButtonsDown(0);
-        printf("\x1b[2;0H");
+        printf("\x1b[2;1H  \n");
+        printf("Press 1 or 2 to open the controllers\n");
 		
-		
-		if (pressed & WPAD_BUTTON_1) {
-            if (!ss_is_connected(&dev)) {
+        if (!ss_is_connected(&dev)) {
+            if (pressed & WPAD_BUTTON_1) {
                 if (ss_open(&dev)>0) {
                     ss_start_reading(&dev);
                     ss_set_removal_cb(&dev, removal_callback, (void*)1);
                 }
             }
+        } else {
+            print_ss_data(&dev);
+            move_leds(&dev);
+            if (pressed & WPAD_BUTTON_PLUS) {
+                ss_set_led(&dev, rand()%8);
+                ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+            }
         }
-		if (pressed & WPAD_BUTTON_2) {
-            if (!ss_is_connected(&dev2)) {
+        
+        if (!ss_is_connected(&dev2)) {
+            if (pressed & WPAD_BUTTON_2) {
                 if (ss_open(&dev2)>0) {
                     ss_start_reading(&dev2);
                     ss_set_removal_cb(&dev2, removal_callback, (void*)2);
                 }
             }
-        }
-		if (pressed & WPAD_BUTTON_PLUS) {
-            ss_set_led(&dev, rand()%8);
-            ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
-        }
-		if (pressed & WPAD_BUTTON_MINUS) {
-            ss_set_led(&dev2, rand()%8);
-            ss_set_rumble(&dev2, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+        } else {
+            print_ss_data(&dev2);
+            move_leds(&dev2);
+            if (pressed & WPAD_BUTTON_MINUS) {
+                ss_set_led(&dev2, rand()%8);
+                ss_set_rumble(&dev2, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+            }
         }
 
-		printf("\x1b[2;5H");
-		if (ss_is_connected(&dev))
-			print_ss_data(&dev);
-			
-		if (ss_is_connected(&dev2))
-			print_ss_data(&dev2);
-		
 		if (pressed & WPAD_BUTTON_HOME) run = 0;
-		VIDEO_WaitVSync();
+        VIDEO_WaitVSync();
+        VIDEO_ClearFrameBuffer (rmode, xfb, COLOR_BLACK);
 	}
 	ss_close(&dev);
 	ss_close(&dev2);
@@ -126,7 +127,7 @@ void move_leds(struct ss_device *dev)
 {
     static int cnt = 0, dir = 1, i = 0;
     cnt++;
-    if (cnt > 8) {
+    if (cnt > 15) {
         if (dir == 1) {
             i++;
             cnt = 0;

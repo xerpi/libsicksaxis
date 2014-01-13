@@ -241,10 +241,10 @@ static int _ss_removal_cb(int result, void *usrdata)
     struct ss_device *dev = (struct ss_device*)usrdata;
     if (dev->device_id > 0) {
         _ss_dev_id_list_remove(dev->device_id);
-        ss_initialize(dev);
         _ss_dev_number--;
         if (dev->removal_callback)
             dev->removal_callback(dev->removal_usrdata);
+        ss_initialize(dev);
         return 1;
     }
     return 0;
