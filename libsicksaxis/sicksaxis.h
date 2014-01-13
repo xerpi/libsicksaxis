@@ -109,17 +109,27 @@ struct SS_ATTRIBUTES
     int led;
 };
 
+typedef void (*ss_usb_callback)(void *usrdata);
+
 struct ss_device {
     struct SS_GAMEPAD pad;
     struct SS_ATTRIBUTES attributes;
     int device_id, fd;
     int connected, enabled, reading;
+    ss_usb_callback read_callback;
+    ss_usb_callback removal_callback;
+    void *read_usrdata, *removal_usrdata;
 }__attribute__((aligned(32)));
+
 
 int ss_init();
 int ss_initialize(struct ss_device *dev);
 int ss_open(struct ss_device *dev);
 int ss_close(struct ss_device *dev);
+inline int ss_is_connected(struct ss_device *dev);
+
+inline int ss_set_read_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
+inline int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
 
 inline int ss_start_reading(struct ss_device *dev);
 inline int ss_stop_reading(struct ss_device *dev);

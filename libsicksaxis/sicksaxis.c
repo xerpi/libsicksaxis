@@ -47,10 +47,14 @@ int ss_init()
 int ss_initialize(struct ss_device *dev)
 {
     dev->device_id = -1;
-    dev->fd = -1;
+    dev->fd        = -1;
     dev->connected = 0;
-    dev->enabled = 0;
-    dev->reading = 0;
+    dev->enabled   = 0;
+    dev->reading   = 0;
+    dev->removal_callback = NULL;
+    dev->removal_usrdata  = NULL;
+    dev->read_callback    = NULL;
+    dev->read_usrdata     = NULL;
     memset(&dev->pad, 0x0, sizeof(struct SS_GAMEPAD));
     memset(&dev->attributes, 0x0, sizeof(struct SS_ATTRIBUTES));
     return 1;
@@ -73,17 +77,19 @@ int ss_open(struct ss_device *dev)
             if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &dev->fd) < 0) {
                 return -3;
             }
+            
             dev->device_id = dev_entry[i].device_id;
             dev->connected = 1;
             dev->enabled = 0;
-            dev->reading = 0;            
+            dev->reading = 0;
+            
+            _ss_set_operational(dev);
             ss_set_led(dev, _ss_dev_number);
             
             _ss_dev_id_list_add(dev_entry[i].device_id);
             _ss_dev_number++;
             
             USB_DeviceRemovalNotifyAsync(dev->fd, &_ss_removal_cb, dev);
-            _ss_set_operational(dev);
             return 1;
         }
     }
@@ -96,6 +102,25 @@ int ss_close(struct ss_device *dev)
     if (dev && dev->fd > 0) {
         USB_CloseDevice(&dev->fd);
     }
+    return 1;
+}
+
+inline int ss_is_connected(struct ss_device *dev)
+{
+    return dev->connected;
+}
+
+inline int ss_set_read_cb(struct ss_device *dev,ss_usb_callback cb, void *usrdata)
+{
+    dev->read_callback = cb;
+    dev->read_usrdata  = usrdata;
+    return 1;
+}
+
+inline int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata)
+{
+    dev->removal_callback = cb;
+    dev->removal_usrdata  = usrdata;
     return 1;
 }
 
@@ -133,6 +158,7 @@ static int _ss_build_attributes_payload(struct ss_device *dev)
 
 static int _ss_send_attributes_payload(struct ss_device *dev)
 {
+    if (!dev->connected) return 0;
     _ss_build_attributes_payload(dev);
     return USB_WriteCtrlMsgAsync(dev->fd,
         USB_REQTYPE_INTERFACE_SET,
@@ -217,6 +243,8 @@ static int _ss_removal_cb(int result, void *usrdata)
         _ss_dev_id_list_remove(dev->device_id);
         ss_initialize(dev);
         _ss_dev_number--;
+        if (dev->removal_callback)
+            dev->removal_callback(dev->removal_usrdata);
         return 1;
     }
     return 0;
@@ -243,6 +271,8 @@ static int _ss_read_cb(int result, void *usrdata)
         struct ss_device *dev = (struct ss_device*)usrdata;
         if (dev->reading) {
             _ss_read(dev);
+        if (dev->read_callback)
+            dev->read_callback(dev->read_usrdata);
         }
     }
     return 1;

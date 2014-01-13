@@ -9,10 +9,14 @@ static int run = 1;
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 void init_video();
-void print_ss_data(const struct ss_device *ss);
+void print_ss_data(const struct ss_device *dev);
+void move_leds(struct ss_device *dev);
+
+void removal_callback(void *usrdata);
 
 int main(int argc, char **argv)
 {
+    srand(time(NULL));
 	IOS_ReloadIOS(58);
 	usleep(100 * 1000);
 	USB_Initialize();
@@ -26,18 +30,39 @@ int main(int argc, char **argv)
 	while(run) {
 		WPAD_ScanPads();
 		u32 pressed = WPAD_ButtonsDown(0);
+        printf("\x1b[2;0H");
 		
 		
-		if (pressed & WPAD_BUTTON_A) {if (ss_open(&dev)>0) ss_start_reading(&dev);}
-		if (pressed & WPAD_BUTTON_PLUS) {if (ss_open(&dev2)>0) ss_start_reading(&dev2);}
-		if (pressed & WPAD_BUTTON_1) ss_set_led(&dev, rand()%8);
-		if (pressed & WPAD_BUTTON_2) ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+		if (pressed & WPAD_BUTTON_1) {
+            if (!ss_is_connected(&dev)) {
+                if (ss_open(&dev)>0) {
+                    ss_start_reading(&dev);
+                    ss_set_removal_cb(&dev, removal_callback, (void*)1);
+                }
+            }
+        }
+		if (pressed & WPAD_BUTTON_2) {
+            if (!ss_is_connected(&dev2)) {
+                if (ss_open(&dev2)>0) {
+                    ss_start_reading(&dev2);
+                    ss_set_removal_cb(&dev2, removal_callback, (void*)2);
+                }
+            }
+        }
+		if (pressed & WPAD_BUTTON_PLUS) {
+            ss_set_led(&dev, rand()%8);
+            ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+        }
+		if (pressed & WPAD_BUTTON_MINUS) {
+            ss_set_led(&dev2, rand()%8);
+            ss_set_rumble(&dev2, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
+        }
 
-		printf("\x1b[2;0H");
-		if (dev.connected)
+		printf("\x1b[2;5H");
+		if (ss_is_connected(&dev))
 			print_ss_data(&dev);
 			
-		if (dev2.connected)
+		if (ss_is_connected(&dev2))
 			print_ss_data(&dev2);
 		
 		if (pressed & WPAD_BUTTON_HOME) run = 0;
@@ -50,63 +75,74 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+void removal_callback(void *usrdata)
+{
+    printf("Device %d disconnected\n", (int)usrdata);   
+}
+
 void init_video()
 {
-	// Initialise the video system
 	VIDEO_Init();
-
-	// Obtain the preferred video mode from the system
-	// This will correspond to the settings in the Wii menu
 	rmode = VIDEO_GetPreferredMode(NULL);
-
-	// Allocate memory for the display in the uncached region
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
-	
-	// Initialise the console, required for printf
 	console_init(xfb,20,20,rmode->fbWidth,rmode->xfbHeight,rmode->fbWidth*VI_DISPLAY_PIX_SZ);
-	
-	// Set up the video registers with the chosen mode
 	VIDEO_Configure(rmode);
-	
-	// Tell the video hardware where our display memory is
 	VIDEO_SetNextFramebuffer(xfb);
-	
-	// Make the display visible
 	VIDEO_SetBlack(FALSE);
-
-	// Flush the video register changes to the hardware
 	VIDEO_Flush();
-
-	// Wait for Video setup to complete
 	VIDEO_WaitVSync();
 	if(rmode->viTVMode&VI_NON_INTERLACE) VIDEO_WaitVSync();
-	
 	printf("\x1b[2;0H");
 }
 
-
-void print_ss_data(const struct ss_device *ss)
+void print_ss_data(const struct ss_device *dev)
 {
     printf("\n\nPS: %i   START: %i   SELECT: %i   /\\: %i   []: %i   O: %i   X: %i   L3: %i   R3: %i\n", \
-            ss->pad.buttons.PS, ss->pad.buttons.start, ss->pad.buttons.select, ss->pad.buttons.triangle, \
-            ss->pad.buttons.square, ss->pad.buttons.circle, ss->pad.buttons.cross, ss->pad.buttons.L3, ss->pad.buttons.R3);
+            dev->pad.buttons.PS, dev->pad.buttons.start, dev->pad.buttons.select, dev->pad.buttons.triangle, \
+            dev->pad.buttons.square, dev->pad.buttons.circle, dev->pad.buttons.cross, dev->pad.buttons.L3, dev->pad.buttons.R3);
 
     printf("L1: %i   L2: %i   R1: %i   R2: %i   UP: %i   DOWN: %i   RIGHT: %i   LEFT: %i\n", \
-            ss->pad.buttons.L1, ss->pad.buttons.L2, ss->pad.buttons.R1, ss->pad.buttons.R2, \
-            ss->pad.buttons.up, ss->pad.buttons.down, ss->pad.buttons.right, ss->pad.buttons.left);
+            dev->pad.buttons.L1, dev->pad.buttons.L2, dev->pad.buttons.R1, dev->pad.buttons.R2, \
+            dev->pad.buttons.up, dev->pad.buttons.down, dev->pad.buttons.right, dev->pad.buttons.left);
 
     printf("LX: %i   LY: %i   RX: %i   RY: %i\n", \
-            ss->pad.left_analog.x, ss->pad.left_analog.y, ss->pad.right_analog.x, ss->pad.right_analog.y);
+            dev->pad.left_analog.x, dev->pad.left_analog.y, dev->pad.right_analog.x, dev->pad.right_analog.y);
 
     printf("aX: %i   aY: %i   aZ: %i   Zgyro: %i\n", \
-            ss->pad.motion.acc_x, ss->pad.motion.acc_y, ss->pad.motion.acc_z, ss->pad.motion.z_gyro);
+            dev->pad.motion.acc_x, dev->pad.motion.acc_y, dev->pad.motion.acc_z, dev->pad.motion.z_gyro);
 
-    printf("L1 press: %i   L2 press: %i   R1 press: %i   R2 press: %i\n", \
-            ss->pad.shoulder_sens.L1, ss->pad.shoulder_sens.L2, ss->pad.shoulder_sens.R1, ss->pad.shoulder_sens.R2);
+    printf("L1 predev: %i   L2 predev: %i   R1 predev: %i   R2 predev: %i\n", \
+            dev->pad.shoulder_sens.L1, dev->pad.shoulder_sens.L2, dev->pad.shoulder_sens.R1, dev->pad.shoulder_sens.R2);
 
-    printf("/\\ press: %i   [] press: %i   O press: %i   X press: %i\n",
-            ss->pad.button_sens.triangle, ss->pad.button_sens.square, ss->pad.button_sens.circle, ss->pad.button_sens.cross);
+    printf("/\\ predev: %i   [] predev: %i   O predev: %i   X predev: %i\n",
+            dev->pad.button_sens.triangle, dev->pad.button_sens.square, dev->pad.button_sens.circle, dev->pad.button_sens.cross);
 
     printf("UP: %i   DOWN: %i   RIGHT: %i   LEFT: %i\n", \
-            ss->pad.dpad_sens.up, ss->pad.dpad_sens.down, ss->pad.dpad_sens.right, ss->pad.dpad_sens.left);
+            dev->pad.dpad_sens.up, dev->pad.dpad_sens.down, dev->pad.dpad_sens.right, dev->pad.dpad_sens.left);
+}
+
+
+void move_leds(struct ss_device *dev)
+{
+    static int cnt = 0, dir = 1, i = 0;
+    cnt++;
+    if (cnt > 8) {
+        if (dir == 1) {
+            i++;
+            cnt = 0;
+            if (i > 4) {
+                i = 4;
+                dir = 0;
+            }
+            ss_set_led(dev, i);
+        } else {
+            i--;
+            cnt = 0;
+            if(i < 1) {
+                i = 1;
+                dir = 1;
+            }
+            ss_set_led(dev, i);                                
+        }
+    }
 }
