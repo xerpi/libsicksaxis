@@ -126,15 +126,15 @@ int ss_init();
 int ss_initialize(struct ss_device *dev);
 int ss_open(struct ss_device *dev);
 int ss_close(struct ss_device *dev);
-inline int ss_is_connected(struct ss_device *dev);
+int ss_is_connected(struct ss_device *dev);
 
-inline int ss_set_read_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
-inline int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
+int ss_set_read_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
+int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata);
 
-inline int ss_start_reading(struct ss_device *dev);
-inline int ss_stop_reading(struct ss_device *dev);
-inline int ss_set_led(struct ss_device *dev, int led);
-inline int ss_set_rumble(struct ss_device *dev, uint8_t duration_right, uint8_t power_right, uint8_t duration_left, uint8_t power_left);
+int ss_start_reading(struct ss_device *dev);
+int ss_stop_reading(struct ss_device *dev);
+int ss_set_led(struct ss_device *dev, int led);
+int ss_set_rumble(struct ss_device *dev, uint8_t duration_right, uint8_t power_right, uint8_t duration_left, uint8_t power_left);
 int ss_get_mac(struct ss_device *dev, uint8_t *mac);
 int ss_set_mac(struct ss_device *dev, const uint8_t *mac);
 

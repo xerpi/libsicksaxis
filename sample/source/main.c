@@ -27,9 +27,9 @@ int main(int argc, char **argv)
 	struct ss_device dev, dev2;
 	ss_initialize(&dev);
 
-	while(run) {
-		WPAD_ScanPads();
-		u32 pressed = WPAD_ButtonsDown(0);
+    while(run) {
+        WPAD_ScanPads();
+        u32 pressed = WPAD_ButtonsDown(0);
         printf("\x1b[2;1H  \n");
         printf("Press 1 or 2 to open the controllers\n");
 		
@@ -65,10 +65,10 @@ int main(int argc, char **argv)
             }
         }
 
-		if (pressed & WPAD_BUTTON_HOME) run = 0;
+        if (pressed & WPAD_BUTTON_HOME) run = 0;
         VIDEO_WaitVSync();
         VIDEO_ClearFrameBuffer (rmode, xfb, COLOR_BLACK);
-	}
+    }
 	ss_close(&dev);
 	ss_close(&dev2);
 	USB_Deinitialize();

@@ -105,26 +105,26 @@ int ss_close(struct ss_device *dev)
     return 1;
 }
 
-inline int ss_is_connected(struct ss_device *dev)
+int ss_is_connected(struct ss_device *dev)
 {
     return dev->connected;
 }
 
-inline int ss_set_read_cb(struct ss_device *dev,ss_usb_callback cb, void *usrdata)
+int ss_set_read_cb(struct ss_device *dev,ss_usb_callback cb, void *usrdata)
 {
     dev->read_callback = cb;
     dev->read_usrdata  = usrdata;
     return 1;
 }
 
-inline int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata)
+int ss_set_removal_cb(struct ss_device *dev, ss_usb_callback cb, void *usrdata)
 {
     dev->removal_callback = cb;
     dev->removal_usrdata  = usrdata;
     return 1;
 }
 
-inline int ss_start_reading(struct ss_device *dev)
+int ss_start_reading(struct ss_device *dev)
 {
     if (dev) {
         dev->reading = 1;
@@ -137,7 +137,7 @@ inline int ss_start_reading(struct ss_device *dev)
 }
 
 
-inline int ss_stop_reading(struct ss_device *dev)
+int ss_stop_reading(struct ss_device *dev)
 {
     if (dev) {
         dev->reading = 0;
