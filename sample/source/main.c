@@ -11,8 +11,15 @@ static GXRModeObj *rmode = NULL;
 void init_video();
 void print_ss_data(const struct ss_device *dev);
 void move_leds(struct ss_device *dev);
-
+volatile int lol = 0;
 void removal_callback(void *usrdata);
+
+int change_cb(int result, void *usrdata)
+{
+    (*(volatile int*)usrdata)++;
+    return result;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -22,16 +29,18 @@ int main(int argc, char **argv)
 	USB_Initialize();
 	init_video();
 	WPAD_Init();
-	
+    	
 	ss_init();
 	struct ss_device dev, dev2;
 	ss_initialize(&dev);
+    
 
     while(run) {
         WPAD_ScanPads();
         u32 pressed = WPAD_ButtonsDown(0);
         printf("\x1b[2;1H  \n");
-        printf("Press 1 or 2 to open the controllers\n");
+        printf("Press 1 or 2 to open the controllers:  %d\n", lol);
+        USB_DeviceChangeNotifyAsync(USB_CLASS_HID, change_cb, (void*)&lol);
 		
         if (!ss_is_connected(&dev)) {
             if (pressed & WPAD_BUTTON_1) {

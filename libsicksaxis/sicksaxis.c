@@ -73,27 +73,30 @@ int ss_open(struct ss_device *dev)
         
     int i;
     for (i = 0; i < dev_count; ++i) {
-        if (!_ss_dev_id_list_exists(dev_entry[i].device_id)) {
-            if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &dev->fd) < 0) {
-                return -3;
+        
+        if ((dev_entry[i].vid == SS_VENDOR_ID) && (dev_entry[i].pid == SS_PRODUCT_ID)) {
+            
+            if (!_ss_dev_id_list_exists(dev_entry[i].device_id)) {
+                if (USB_OpenDevice(dev_entry[i].device_id, SS_VENDOR_ID, SS_PRODUCT_ID, &dev->fd) < 0) {
+                    return -3;
+                }
+                
+                dev->device_id = dev_entry[i].device_id;
+                dev->connected = 1;
+                dev->enabled = 0;
+                dev->reading = 0;
+                
+                _ss_set_operational(dev);
+                ss_set_led(dev, _ss_dev_number);
+                
+                _ss_dev_id_list_add(dev_entry[i].device_id);
+                _ss_dev_number++;
+                
+                USB_DeviceRemovalNotifyAsync(dev->fd, &_ss_removal_cb, dev);
+                return 1;
             }
-            
-            dev->device_id = dev_entry[i].device_id;
-            dev->connected = 1;
-            dev->enabled = 0;
-            dev->reading = 0;
-            
-            _ss_set_operational(dev);
-            ss_set_led(dev, _ss_dev_number);
-            
-            _ss_dev_id_list_add(dev_entry[i].device_id);
-            _ss_dev_number++;
-            
-            USB_DeviceRemovalNotifyAsync(dev->fd, &_ss_removal_cb, dev);
-            return 1;
         }
     }
-    
     return -4;
 }
 
