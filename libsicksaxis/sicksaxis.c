@@ -188,6 +188,26 @@ inline int ss_set_rumble(struct ss_device *dev, uint8_t duration_right, uint8_t 
     return _ss_send_attributes_payload(dev);
 }
 
+int ss_get_bd_address(struct ss_device *dev, uint8_t *mac)
+{
+    uint8_t ATTRIBUTE_ALIGN(32) msg[17];
+    int ret = USB_WriteCtrlMsgAsync(dev->fd,
+                USB_REQTYPE_INTERFACE_GET,
+                USB_REQ_GETREPORT,
+                (USB_REPTYPE_FEATURE<<8) | 0xf2,
+                0,
+                sizeof(msg),
+                msg,
+                NULL, NULL);
+
+    mac[0] = msg[4];
+    mac[1] = msg[5];
+    mac[2] = msg[6];
+    mac[3] = msg[7];
+    mac[4] = msg[8];
+    mac[5] = msg[9];
+    return ret;
+}
 
 int ss_get_mac(struct ss_device *dev, uint8_t *mac)
 {
