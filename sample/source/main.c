@@ -11,37 +11,29 @@ static GXRModeObj *rmode = NULL;
 void init_video();
 void print_ss_data(const struct ss_device *dev);
 void move_leds(struct ss_device *dev);
-volatile int lol = 0;
 void removal_callback(void *usrdata);
-
-int change_cb(int result, void *usrdata)
-{
-    (*(volatile int*)usrdata)++;
-    return result;
-}
 
 
 int main(int argc, char **argv)
 {
-    srand(time(NULL));
+	srand(time(NULL));
 	IOS_ReloadIOS(58);
 	usleep(100 * 1000);
 	USB_Initialize();
 	init_video();
 	WPAD_Init();
-    	
+
 	ss_init();
 	struct ss_device dev, dev2;
 	ss_initialize(&dev);
-    
+
 
     while(run) {
         WPAD_ScanPads();
         u32 pressed = WPAD_ButtonsDown(0);
         printf("\x1b[2;1H  \n");
-        printf("Press 1 or 2 to open the controllers:  %d\n", lol);
-        USB_DeviceChangeNotifyAsync(USB_CLASS_HID, change_cb, (void*)&lol);
-		
+        printf("Press 1 or 2 to open the controllers\n");
+
         if (!ss_is_connected(&dev)) {
             if (pressed & WPAD_BUTTON_1) {
                 if (ss_open(&dev)>0) {
@@ -57,7 +49,7 @@ int main(int argc, char **argv)
                 ss_set_rumble(&dev, rand()%0xFF, rand()%0xFF, rand()%0xFF, rand()%0xFF);
             }
         }
-        
+
         if (!ss_is_connected(&dev2)) {
             if (pressed & WPAD_BUTTON_2) {
                 if (ss_open(&dev2)>0) {
@@ -87,7 +79,7 @@ int main(int argc, char **argv)
 
 void removal_callback(void *usrdata)
 {
-    printf("Device %d disconnected\n", (int)usrdata);   
+    printf("Device %d disconnected\n", (int)usrdata);
 }
 
 void init_video()
@@ -152,7 +144,7 @@ void move_leds(struct ss_device *dev)
                 i = 1;
                 dir = 1;
             }
-            ss_set_led(dev, i);                                
+            ss_set_led(dev, i);
         }
     }
 }
